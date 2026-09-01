@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#f6f5f2">
+<meta name="description" content="上海苏州河 Citywalk 手机指南：寺院、社区更新、旧工业空间、滨水公共空间与战争记忆。">
+<title>苏州河 Citywalk ｜ 上海的另一面</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="tb-text">
+      <div class="tb-kicker" id="tbKicker">SUZHOU CREEK · CITYWALK</div>
+      <div class="tb-title" id="tbTitle">苏州河 Citywalk</div>
+    </div>
+    <div class="tb-actions">
+      <button id="btnRoute" class="btn btn-primary" type="button">查看完整路线</button>
+      <div class="lang-switch" role="group" aria-label="language">
+        <button type="button" class="lang-btn" data-lang="zh">中文</button>
+        <button type="button" class="lang-btn" data-lang="de">DE</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="app">
+
+  <!-- 1. 路线标题 -->
+  <section class="hero" id="hero"></section>
+
+  <!-- 地图（可折叠，顶部按钮可打开） -->
+  <section class="map-card" id="mapCard">
+    <button class="map-head" id="mapHead" type="button" aria-expanded="false" aria-controls="mapBody">
+      <span class="map-head-title" id="mapHeadTitle">完整路线地图</span>
+      <span class="chev" aria-hidden="true"></span>
+    </button>
+    <div class="map-body" id="mapBody" hidden>
+      <div id="mapEl" class="map-el"></div>
+      <div class="map-msg" id="mapMsg" hidden></div>
+      <div class="map-tools">
+        <button class="btn btn-ghost" type="button" data-act="locate"><span id="t-locate">定位我的位置</span></button>
+        <button class="btn btn-ghost" type="button" data-act="reroute">↻ 重新计算路线</button>
+      </div>
+      <p class="map-note" id="mapNote"></p>
+    </div>
+  </section>
+
+  <!-- 2. 行前准备 -->
+  <section class="block" id="prepBlock"></section>
+
+  <!-- 3. 路线：六个正式站点 + 主题步行章节 + 顺路看点 + 备选景点，按位置顺序统一排列 -->
+  <section class="block" id="timelineBlock"></section>
+
+  <!-- 4. 隐藏游船玩法 -->
+  <section class="block" id="boatBlock"></section>
+
+  <!-- 7. 结尾总结 -->
+  <section class="block" id="endingBlock"></section>
+
+  <footer class="foot" id="foot"></footer>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="app.js?v=20260830-android-touch2"></script>
+</body>
+</html>
+
