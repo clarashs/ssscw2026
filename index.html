@@ -6,16 +6,13 @@
 <meta name="theme-color" content="#f6f5f2">
 <meta name="description" content="上海苏州河 Citywalk 手机指南：寺院、社区更新、旧工业空间、滨水公共空间与战争记忆。">
 <title>苏州河 Citywalk ｜ 上海的另一面</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
 <header class="topbar">
   <div class="topbar-inner">
-    <div class="tb-text">
-      <div class="tb-kicker" id="tbKicker">SUZHOU CREEK · CITYWALK</div>
-      <div class="tb-title" id="tbTitle">苏州河 Citywalk</div>
-    </div>
     <div class="tb-actions">
       <button id="btnRoute" class="btn btn-primary" type="button">查看完整路线</button>
       <div class="lang-switch" role="group" aria-label="language">
@@ -65,9 +62,23 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+<div id="mapProviderSheet" class="map-provider-sheet" hidden>
+  <div class="map-provider-backdrop" data-map-provider="close"></div>
+  <div class="map-provider-panel" role="dialog" aria-modal="true" aria-labelledby="mapProviderTitle">
+    <p class="map-provider-title" id="mapProviderTitle">选择地图</p>
+    <div class="map-provider-options">
+      <button type="button" data-map-provider="google">谷歌地图</button>
+      <button type="button" data-map-provider="amap">高德地图</button>
+      <button type="button" data-map-provider="apple">Apple 地图</button>
+      <button type="button" data-map-provider="close">取消</button>
+    </div>
+  </div>
+</div>
+
 <script src="config.js"></script>
 <script src="data.js"></script>
-<script src="app.js?v=20260830-android-touch2"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="app.js?v=20260902-map-note-wording"></script>
 </body>
 </html>
 

@@ -4,6 +4,7 @@
 
   /* ---------------- 状态 ---------------- */
   var LS_KEY = 'scw.v1';
+  var ROUTE_REQUEST_TIMEOUT_MS = 10000;
   var state = { lang: 'de', selected: [], expanded: [], mapOpen: false };
 
   try {
@@ -97,6 +98,13 @@
 
   function scrollToEl(el, block) {
     if (!el || typeof el.scrollIntoView !== 'function') return;
+    if (block === 'center') {
+      var topbar = document.querySelector('.topbar');
+      var offset = (topbar ? topbar.getBoundingClientRect().height : 0) + 16;
+      var top = el.getBoundingClientRect().top + window.pageYOffset - offset;
+      try { window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }); return; }
+      catch (e0) { try { window.scrollTo(0, Math.max(0, top)); return; } catch (e1) {} }
+    }
     try { el.scrollIntoView({ behavior: 'smooth', block: block || 'center' }); }
     catch (e) { try { el.scrollIntoView(); } catch (e2) {} }
   }
@@ -158,13 +166,12 @@
   }
 
   function mapNoteHtml() {
-    return '<span class="map-note-icon map-note-stop" aria-hidden="true">1</span> ' + esc(t('mapNoteFormal')) + '、' +
+    return '<span class="map-note-action">' + esc(t('mapNoteAction')) + '</span> ' + esc(t('mapNoteClickable')) + '。<br>' +
+      '<span class="map-note-icon map-note-stop" aria-hidden="true">1</span> ' + esc(t('mapNoteFormal')) + '、' +
       '<span class="map-note-icon map-note-aside" aria-hidden="true">' + ICONS.eye + '</span> ' + esc(t('mapNoteAside')) + '、' +
       '<span class="map-note-icon map-note-opt" aria-hidden="true"><span>◇</span></span> ' + esc(t('mapNoteOptional')) + '、' +
       '<span class="map-note-icon map-note-photo" aria-hidden="true">' + ICONS.camera + '</span> ' + esc(t('mapNotePhoto')) +
       '<br>' +
-      '<span class="map-note-action">' + esc(t('mapNoteAction')) + '</span> ' +
-      '<span class="map-note-icon map-note-dialog" aria-hidden="true">' + ICONS.dialog + '</span> ' + esc(t('mapNoteClickable')) + '。' +
       '<span class="map-note-retry">' + esc(t('mapNoteRetry')) + '</span>';
   }
 
@@ -205,8 +212,8 @@
 
   function actsHtml(p) {
     var h = '<div class="acts">';
-    h += '<button class="btn btn-ghost btn-sm" type="button" data-act="amap" data-id="' + p.id + '" data-nav-url="' + esc(amapUrl(p)) + '">' + esc(t('navAmap')) + '</button>';
-    h += '<button class="btn btn-ghost btn-sm" type="button" data-act="apple" data-id="' + p.id + '">' + esc(t('navApple')) + '</button>';
+    h += '<button class="btn btn-ghost btn-sm" type="button" data-act="copy" data-id="' + p.id + '">' + esc(t('mapPopupCopy')) + '</button>';
+    h += '<button class="btn btn-ghost btn-sm" type="button" data-act="maps" data-id="' + p.id + '">' + esc(t('mapPopupMaps')) + '</button>';
     h += '</div>';
     return h;
   }
@@ -316,7 +323,8 @@
   }
 
   function renderHero() {
-    var html = '<h1>' + esc(t('title')) + '</h1>' +
+    var html = '<div class="hero-kicker">' + esc(t('kicker')) + '</div>' +
+      '<h1>' + esc(t('title')) + '</h1>' +
       '<p class="sub">' + esc(t('subtitle')) + '</p>' +
       '<div class="hero-meta">' +
       '<span class="chip">' + esc(t('metaDuration').replace('{t}', fmt(totalMinutes()))) + '</span>' +
@@ -393,14 +401,13 @@
     var y = window.scrollY;
     var L = state.lang;
     document.documentElement.lang = L === 'de' ? 'de' : 'zh-CN';
-    document.getElementById('tbKicker').textContent = t('kicker');
-    document.getElementById('tbTitle').textContent = t('title');
     document.getElementById('btnRoute').textContent = t('btnRoute');
     document.getElementById('mapHeadTitle').textContent = t('mapTitle');
     document.getElementById('t-locate').textContent = t('locate');
     var rerouteButton = document.querySelector('[data-act="reroute"]');
     if (rerouteButton && !rerouteButton.disabled) rerouteButton.textContent = t('reroute');
     document.getElementById('mapNote').innerHTML = mapNoteHtml();
+    renderMapProviderSheet();
     Array.prototype.forEach.call(document.querySelectorAll('.lang-btn'), function (b) {
       b.classList.toggle('is-on', b.dataset.lang === L);
     });
@@ -412,6 +419,49 @@
 
   /* ---------------- 地图 ---------------- */
   var CFG = window.AMAP_CONFIG || {};
+
+  function gcj02ToWgs84(coord) {
+    var lng = Number(coord[0]), lat = Number(coord[1]);
+    var a = 6378245.0, ee = 0.00669342162296594323;
+    var dLat = transformLat(lng - 105, lat - 35), dLng = transformLng(lng - 105, lat - 35);
+    var radLat = lat / 180 * Math.PI, magic = 1 - ee * Math.sin(radLat) * Math.sin(radLat), sqrtMagic = Math.sqrt(magic);
+    dLat = dLat * 180 / ((a * (1 - ee)) / (magic * sqrtMagic) * Math.PI);
+    dLng = dLng * 180 / (a / sqrtMagic * Math.cos(radLat) * Math.PI);
+    return [lng - dLng, lat - dLat];
+  }
+  function transformLat(x, y) { var ret = -100 + 2*x + 3*y + .2*y*y + .1*x*y + .2*Math.sqrt(Math.abs(x)); ret += (20*Math.sin(6*x*Math.PI)+20*Math.sin(2*x*Math.PI))*2/3; ret += (20*Math.sin(y*Math.PI)+40*Math.sin(y/3*Math.PI))*2/3; ret += (160*Math.sin(y/12*Math.PI)+320*Math.sin(y*Math.PI/30))*2/3; return ret; }
+  function transformLng(x, y) { var ret = 300 + x + 2*y + .1*x*x + .1*x*y + .1*Math.sqrt(Math.abs(x)); ret += (20*Math.sin(6*x*Math.PI)+20*Math.sin(2*x*Math.PI))*2/3; ret += (20*Math.sin(x*Math.PI)+40*Math.sin(x/3*Math.PI))*2/3; ret += (150*Math.sin(x/12*Math.PI)+300*Math.sin(x/30*Math.PI))*2/3; return ret; }
+  function mapCoord(p) { return gcj02ToWgs84(p.coord); }
+  function routeCoord(point) { var lng = typeof point.getLng === 'function' ? point.getLng() : (point.lng == null ? point[0] : point.lng); var lat = typeof point.getLat === 'function' ? point.getLat() : (point.lat == null ? point[1] : point.lat); return gcj02ToWgs84([lng, lat]); }
+  function mapPopupHtml(p) { return '<div class="map-info-card"><div class="map-info-title"><b>' + esc(p.name.zh) + '</b><br>' + esc(p.name.en || p.name.zh) + '</div><div class="map-info-actions"><button type="button" data-map-action="card" data-map-id="' + esc(p.id) + '">' + esc(t('mapPopupCard')) + '</button><button type="button" data-map-action="copy" data-map-id="' + esc(p.id) + '">' + esc(t('mapPopupCopy')) + '</button><button type="button" data-map-action="maps" data-map-id="' + esc(p.id) + '">' + esc(t('mapPopupMaps')) + '</button></div></div>'; }
+
+  function renderMapProviderSheet() {
+    var sheet = document.getElementById('mapProviderSheet');
+    if (!sheet) return;
+    document.getElementById('mapProviderTitle').textContent = t('mapProviderTitle');
+    sheet.querySelector('[data-map-provider="google"]').textContent = t('mapProviderGoogle');
+    sheet.querySelector('[data-map-provider="amap"]').textContent = t('mapProviderAmap');
+    sheet.querySelector('[data-map-provider="apple"]').textContent = t('mapProviderApple');
+    sheet.querySelector('.map-provider-options [data-map-provider="close"]').textContent = t('mapProviderCancel');
+  }
+
+  var mapProviderPlace = null;
+  function openMapProviderSheet(p) {
+    mapProviderPlace = p;
+    if (MapMod && MapMod.info) { MapMod.info.remove(); MapMod.info = null; }
+    var sheet = document.getElementById('mapProviderSheet');
+    if (!sheet) return;
+    renderMapProviderSheet();
+    sheet.hidden = false;
+    document.body.classList.add('map-provider-open');
+  }
+
+  function closeMapProviderSheet() {
+    var sheet = document.getElementById('mapProviderSheet');
+    if (sheet) sheet.hidden = true;
+    document.body.classList.remove('map-provider-open');
+    mapProviderPlace = null;
+  }
 
   var MapMod = {
     ready: false,
@@ -427,75 +477,58 @@
     geo: null,
     userMarker: null,
     routeGeneration: 0,
+    pending: null,
 
     ensure: function () {
       var self = this;
       if (this.ready) return Promise.resolve(true);
       if (this.failed) return Promise.resolve(false);
-      if (this.loading) return Promise.resolve(false);
+      if (this.loading) return this.pending || Promise.resolve(false);
       this.loading = true;
       showMapMsg(t('mapLoading'), 'info');
-      return loadAMap().then(function () {
-        self.map = new AMap.Map('mapEl', {
-          zoom: 14,
-          center: [121.4555, 31.2442],
-          viewMode: '2D',
-          resizeEnable: true
-        });
-        self.info = new AMap.InfoWindow({ offset: new AMap.Pixel(0, -30), autoMove: false });
-        try { self.geo = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 8000, showButton: false }); } catch (e) {}
-        try { self.walking = new AMap.Walking({ autoFitView: false, hideMarkers: true }); } catch (e) {}
-        self.ready = true;
-        self.loading = false;
-        hideMapMsg();
-        self.refresh();
-        return true;
-      })['catch'](function (err) {
-        self.loading = false;
-        self.failed = true;
-        showMapMsg(err === 'nokey' ? t('mapNoKey') : t('mapFail'), 'warn');
-        return false;
+      this.pending = new Promise(function (resolve) {
+        if (!window.maplibregl) { self.loading = false; self.failed = true; showMapMsg(t('mapFail'), 'warn'); resolve(false); return; }
+        self.map = new maplibregl.Map({ container: 'mapEl', style: 'https://tiles.openfreemap.org/styles/liberty', center: gcj02ToWgs84([121.4555, 31.2442]), zoom: 14, attributionControl: true });
+        self.map.once('load', function () { self.ready = true; self.loading = false; self.pending = null; hideMapMsg(); self.refresh(); resolve(true); loadAMap().then(function () { try { self.walking = new AMap.Walking({ autoFitView: false, hideMarkers: true }); } catch (e) {} try { self.geo = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 8000, showButton: false }); } catch (e2) { self.geo = null; } self.refreshRoutes(false); })['catch'](function () {}); });
+        self.map.on('error', function () { if (!self.ready) { self.loading = false; self.failed = true; showMapMsg(t('mapFail'), 'warn'); resolve(false); } });
       });
+      return this.pending;
     },
 
     refresh: function () {
       if (!this.ready) return;
       var self = this;
-      Object.keys(this.markers).forEach(function (k) { self.map.remove(self.markers[k]); });
+      Object.keys(this.markers).forEach(function (k) { self.markers[k].remove(); });
       this.markers = {};
 
       PLACES.forEach(function (p) {
         if (p.type === 'chapter') return;
         var cls = p.type === 'stop' ? 'mk-stop' : (p.type === 'glance' ? 'mk-aside' : 'mk-opt' + (state.selected.indexOf(p.id) > -1 ? ' is-selected' : ''));
         var inner = p.type === 'stop' ? stopNumbers[p.id] : (p.type === 'glance' ? ICONS.eye : '◇');
-        var m = new AMap.Marker({
-          position: p.coord,
-          offset: new AMap.Pixel(-13, -13),
-          content: '<div class="mk ' + cls + '" data-mk="' + p.id + '">' + inner + '</div>',
-          title: nameOf(p),
-          zIndex: p.type === 'stop' ? 130 : (p.type === 'glance' ? 110 : (state.selected.indexOf(p.id) > -1 ? 120 : 90))
-        });
-        m.on('click', function () { self.focus(p.id, false); });
+        var el = document.createElement('div'); el.className = 'mk ' + cls; el.setAttribute('data-mk', p.id); el.innerHTML = inner;
+        var m = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(mapCoord(p)).addTo(self.map);
+        el.addEventListener('click', function (e) { e.stopPropagation(); self.focus(p.id, false); });
         self.markers[p.id] = m;
-        self.map.add(m);
       });
 
       PHOTO_SPOTS.forEach(function (spot) {
         var markerKey = 'photo-' + spot.id;
-        var m = new AMap.Marker({
-          position: spot.coord,
-          offset: new AMap.Pixel(-13, -13),
-          content: '<div class="mk mk-photo" data-photo="' + spot.id + '">' + ICONS.camera + '</div>',
-          title: tx(spot.name),
-          zIndex: 125
-        });
-        m.on('click', function () { self.focusPhoto(spot.id); });
+        var el = document.createElement('div'); el.className = 'mk mk-photo'; el.setAttribute('data-photo', spot.id); el.innerHTML = ICONS.camera;
+        var m = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(gcj02ToWgs84(spot.coord)).addTo(self.map);
+        el.addEventListener('click', function (e) { e.stopPropagation(); self.focusPhoto(spot.id); });
         self.markers[markerKey] = m;
-        self.map.add(m);
       });
 
       this.refreshRoutes(false);
-      this.map.setFitView(null, false, [50, 50, 50, 50]);
+      this.fitAll();
+    },
+
+    fitAll: function () {
+      if (!this.ready) return;
+      var bounds = new maplibregl.LngLatBounds();
+      PLACES.filter(function (p) { return p.type !== 'chapter'; }).forEach(function (p) { bounds.extend(mapCoord(p)); });
+      PHOTO_SPOTS.forEach(function (p) { bounds.extend(gcj02ToWgs84(p.coord)); });
+      this.map.fitBounds(bounds, { padding: 50, maxZoom: 14, duration: 0 });
     },
 
     refreshRoutes: function (showFeedback) {
@@ -505,7 +538,7 @@
       }
       var self = this;
       var generation = ++this.routeGeneration;
-      this.lines.forEach(function (line) { self.map.remove(line); });
+      this.lines.forEach(function (line) { if (self.map.getLayer(line)) self.map.removeLayer(line); if (self.map.getSource(line)) self.map.removeSource(line); });
       this.lines = [];
       this.dist = 0;
       updateWalkChip();
@@ -532,9 +565,10 @@
       function finishSegment(a, b, distance, path, dashed) {
         if (generation !== self.routeGeneration) return;
         self.dist += distance || directDistanceMeters(a.coord, b.coord);
-        self.line(path || a.coord, path ? null : b.coord, dashed);
+        var convertedPath = path && path.length ? path.map(routeCoord) : null;
+        self.line(convertedPath || mapCoord(a), convertedPath ? null : mapCoord(b), dashed);
         updateWalkChip();
-        self.map.setFitView(null, false, [50, 50, 50, 50]);
+        self.fitAll();
         nextSegment();
       }
 
@@ -547,16 +581,30 @@
           finishSegment(a, b, directDistanceMeters(a.coord, b.coord), null, true);
           return;
         }
-        self.walking.search(a.coord, b.coord, function (status, result) {
-          if (generation !== self.routeGeneration) return;
-          if (status === 'complete' && result.routes && result.routes.length) {
-            var r = result.routes[0], path = [];
-            (r.steps || []).forEach(function (s) { path = path.concat(s.path || []); });
-            finishSegment(a, b, r.distance, path.length ? path : null, !path.length);
-          } else {
-            finishSegment(a, b, directDistanceMeters(a.coord, b.coord), null, true);
-          }
-        });
+        var settled = false;
+        function fallback() {
+          if (settled || generation !== self.routeGeneration) return;
+          settled = true;
+          finishSegment(a, b, directDistanceMeters(a.coord, b.coord), null, true);
+        }
+        var timer = setTimeout(fallback, ROUTE_REQUEST_TIMEOUT_MS);
+        try {
+          self.walking.search(a.coord, b.coord, function (status, result) {
+            if (settled || generation !== self.routeGeneration) return;
+            settled = true;
+            clearTimeout(timer);
+            if (status === 'complete' && result && result.routes && result.routes.length) {
+              var r = result.routes[0], path = [];
+              (r.steps || []).forEach(function (s) { path = path.concat(s.path || []); });
+              finishSegment(a, b, r.distance, path.length ? path : null, !path.length);
+            } else {
+              finishSegment(a, b, directDistanceMeters(a.coord, b.coord), null, true);
+            }
+          });
+        } catch (e) {
+          clearTimeout(timer);
+          fallback();
+        }
       }
 
       nextSegment();
@@ -564,17 +612,10 @@
 
     line: function (pathA, pathB, dashed) {
       var path = pathB ? [pathA, pathB] : pathA;
-      var pl = new AMap.Polyline({
-        path: path,
-        strokeColor: dashed ? '#8a877f' : '#1f8a4c',
-        strokeWeight: dashed ? 3 : 5,
-        strokeOpacity: dashed ? .6 : .85,
-        strokeStyle: dashed ? 'dashed' : 'solid',
-        lineJoin: 'round',
-        lineCap: 'round'
-      });
-      this.map.add(pl);
-      this.lines.push(pl);
+      var id = 'route-line-' + this.lines.length;
+      this.map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: path } } });
+      this.map.addLayer({ id: id, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': dashed ? '#8a877f' : '#1f8a4c', 'line-width': dashed ? 3 : 5, 'line-opacity': dashed ? .6 : .85, 'line-dasharray': dashed ? [2, 2] : [1, 0] }});
+      this.lines.push(id);
     },
 
     focus: function (id, fromMap) {
@@ -595,13 +636,12 @@
       if (!this.ready) return;
       var m = this.markers[id];
       if (m) {
-        this.map.setZoomAndCenter(16, p.coord);
-        this.infoActivation = { id: id, openedAt: Date.now() };
-        this.info.setContent('<div class="map-info-link" data-map-card="' + esc(p.id) + '" role="button" tabindex="0" style="font-size:13px;line-height:1.5;max-width:220px;cursor:pointer"><b>' +
-          esc(p.name.zh) + '</b><br>' + esc(p.name.en || p.name.zh) + '</div>');
-        this.info.open(this.map, p.coord);
+        var self = this;
+        this.map.easeTo({ center: mapCoord(p), zoom: 14, duration: 350 });
+        if (this.info) this.info.remove();
+        this.info = new maplibregl.Popup({ offset: 18, maxWidth: '280px', closeButton: true }).setLngLat(mapCoord(p)).setHTML(mapPopupHtml(p)).addTo(this.map);
         Object.keys(this.markers).forEach(function (k) {
-          var node = document.querySelector('.mk[data-mk="' + k + '"]');
+          var node = self.markers[k].getElement();
           if (node) node.classList.toggle('is-active', k === id);
         });
       }
@@ -610,32 +650,37 @@
     focusPhoto: function (id) {
       var spot = photoSpotById(id);
       if (!spot || !this.ready) return;
-      this.map.setZoomAndCenter(16, spot.coord);
-      this.info.setContent('<div style="font-size:13px;line-height:1.5;max-width:220px"><b>' +
-        esc(tx(spot.name)) + '</b><br>' + esc(tx(spot.hint)) + '</div>');
-      this.info.open(this.map, spot.coord);
+      this.map.easeTo({ center: gcj02ToWgs84(spot.coord), zoom: 14, duration: 350 });
+      if (this.info) this.info.remove();
+      this.info = new maplibregl.Popup({ offset: 18, maxWidth: '280px', closeButton: true }).setLngLat(gcj02ToWgs84(spot.coord)).setHTML('<div class="map-info-card"><div class="map-info-title"><b>' + esc(tx(spot.name)) + '</b><br>' + esc(tx(spot.hint)) + '</div></div>').addTo(this.map);
+    },
+
+    setUserPosition: function (coord) {
+      setLocateState(true);
+      this.map.easeTo({ center: coord, zoom: 16, duration: 350 });
+      if (this.userMarker) this.userMarker.remove();
+      var el = document.createElement('div'); el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#2563c9;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)';
+      this.userMarker = new maplibregl.Marker({ element: el }).setLngLat(coord).addTo(this.map);
     },
 
     locate: function () {
       var self = this;
-      if (!this.ready || !this.geo) { toast(t('locateFail')); setLocateState(false); return; }
+      if (!this.ready) { toast(t('locateFail')); setLocateState(false); return; }
       setLocateState('loading');
-      this.geo.getCurrentPosition(function (status, result) {
-        if (status === 'complete' && result.position) {
-          setLocateState(true);
-          self.map.setZoomAndCenter(16, [result.position.lng, result.position.lat]);
-          if (self.userMarker) self.map.remove(self.userMarker);
-          self.userMarker = new AMap.Marker({
-            position: [result.position.lng, result.position.lat],
-            content: '<div style="width:16px;height:16px;border-radius:50%;background:#2563c9;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)"></div>',
-            offset: new AMap.Pixel(-8, -8)
-          });
-          self.map.add(self.userMarker);
-        } else {
-          setLocateState(false);
-          toast(t('locateFail'));
-        }
-      });
+      function locateWithBrowser() {
+        if (!navigator.geolocation) { setLocateState(false); toast(t('locateFail')); return; }
+        navigator.geolocation.getCurrentPosition(function (position) {
+          if (position && position.coords) self.setUserPosition([position.coords.longitude, position.coords.latitude]);
+          else { setLocateState(false); toast(t('locateFail')); }
+        }, function () { setLocateState(false); toast(t('locateFail')); }, { enableHighAccuracy: true, timeout: 8000 });
+      }
+      if (this.geo) {
+        this.geo.getCurrentPosition(function (status, result) {
+          if (status === 'complete' && result && result.position) {
+            self.setUserPosition(gcj02ToWgs84([result.position.lng, result.position.lat]));
+          } else locateWithBrowser();
+        });
+      } else locateWithBrowser();
     }
   };
 
@@ -759,8 +804,10 @@
         renderRoute();
         return;
       }
-      if (act === 'amap' && p) { openExternal(btn.getAttribute('data-nav-url') || amapUrl(p), p); return; }
+      if (act === 'amap' && p) { openExternal(btn.getAttribute('data-nav-url') || amapUrl(p), p, amapWebNavigationUrl(p, false)); return; }
       if (act === 'apple' && p) { openExternal(appleUrl(p), p); return; }
+      if (act === 'copy' && p) { copyText(addrPrimary(p), t('mapPopupCopied')); return; }
+      if (act === 'maps' && p) { openMapProviderSheet(p); return; }
       if (act === 'map' && p) {
         openMapSection(true);
         MapMod.ensure().then(function (ok) { if (ok) MapMod.focus(id, false); });
@@ -808,50 +855,46 @@
   });
 
   document.addEventListener('click', function (e) {
-    var infoLink = e.target.closest('.map-info-link');
-    if (!infoLink) return;
-    var id = infoLink.getAttribute('data-map-card');
-    var activation = MapMod.infoActivation;
-    var touchArmed = activation && infoTouchTarget === infoLink && infoTouchAt > activation.openedAt + 120;
-    if (activation && activation.id === id && Date.now() - activation.openedAt < 1200 && !touchArmed && e.detail !== 0) return;
-    MapMod.infoActivation = null;
-    e.preventDefault();
-    e.stopPropagation();
-    if (byId(id)) MapMod.focus(id, true);
+    var action = e.target.closest && e.target.closest('[data-map-action]');
+    if (!action) return;
+    var id = action.getAttribute('data-map-id'), p = byId(id), kind = action.getAttribute('data-map-action');
+    if (!p) return;
+    if (kind === 'card') { e.preventDefault(); e.stopPropagation(); MapMod.focus(id, true); }
+    if (kind === 'copy') { e.preventDefault(); e.stopPropagation(); copyText(addrPrimary(p), t('mapPopupCopied')); }
+    if (kind === 'maps') { e.preventDefault(); e.stopPropagation(); openMapProviderSheet(p); }
   });
 
-  var infoTouchTarget = null;
-  var infoTouchAt = 0;
-  function rememberInfoTouch(e) {
-    var target = e.target.closest && e.target.closest('.map-info-link');
-    if (!target) {
-      infoTouchTarget = null;
-      infoTouchAt = 0;
-      return;
-    }
-    var activation = MapMod.infoActivation;
-    if (activation && activation.id === target.getAttribute('data-map-card') && Date.now() - activation.openedAt < 120) {
-      infoTouchTarget = null;
-      infoTouchAt = 0;
-      return;
-    }
-    infoTouchTarget = target;
-    infoTouchAt = Date.now();
-  }
-  document.addEventListener('pointerdown', rememberInfoTouch, true);
-  document.addEventListener('touchstart', rememberInfoTouch, true);
+  document.addEventListener('click', function (e) {
+    var provider = e.target.closest && e.target.closest('[data-map-provider]');
+    if (!provider) return;
+    e.preventDefault();
+    var choice = provider.getAttribute('data-map-provider');
+    if (choice === 'close') { closeMapProviderSheet(); return; }
+    if (!mapProviderPlace) return;
+    var p = mapProviderPlace;
+    closeMapProviderSheet();
+    if (choice === 'google') openExternal(googleMapsUrl(p), p);
+    if (choice === 'amap') openExternal(amapAppUrl(p), p, amapWebNavigationUrl(p, false));
+    if (choice === 'apple') openExternal(appleUrl(p), p);
+  });
 
   function amapUrl(p) {
-    if (state.lang === 'de') {
-      var destination = '&dlat=' + p.coord[1] + '&dlon=' + p.coord[0] +
-        '&dname=' + encodeURIComponent(p.name.en || p.name.zh) + '&dev=0&t=2';
-      var ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-        (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-      if (ios) return 'iosamap://path?sourceApplication=citywalk' + destination;
-      return 'amapuri://route/plan/?sourceApplication=citywalk' + destination;
-    }
+    if (state.lang === 'de') return amapAppUrl(p);
+    return amapWebNavigationUrl(p, true);
+  }
+
+  function amapAppUrl(p) {
+    var destination = '&dlat=' + p.coord[1] + '&dlon=' + p.coord[0] +
+      '&dname=' + encodeURIComponent(p.name.en || p.name.zh) + '&dev=0&t=2';
+    var ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+    if (ios) return 'iosamap://path?sourceApplication=citywalk' + destination;
+    return 'amapuri://route/plan/?sourceApplication=citywalk' + destination;
+  }
+
+  function amapWebNavigationUrl(p, callNative) {
     return 'https://uri.amap.com/navigation?to=' + p.coord[0] + ',' + p.coord[1] + ',' +
-      encodeURIComponent(p.name.zh) + '&mode=walk&policy=1&src=citywalk&coordinate=gaode&callnative=1';
+      encodeURIComponent(p.name.zh) + '&mode=walk&policy=1&src=citywalk&coordinate=gaode&callnative=' + (callNative ? '1' : '0');
   }
 
   function appleUrl(p) {
@@ -859,10 +902,16 @@
       '&q=' + encodeURIComponent(p.name.en || p.name.zh) + '&dirflg=w';
   }
 
-  function openExternal(url, p) {
+  function googleMapsUrl(p) {
+    return 'https://www.google.com/maps/dir/?api=1&destination=' + p.coord[1] + ',' + p.coord[0] +
+      '&destination_place_id=&travelmode=walking';
+  }
+
+  function openExternal(url, p, fallbackUrl) {
     try { window.location.href = url; } catch (e) { window.open(url, '_blank'); }
     setTimeout(function () {
       if (document.visibilityState === 'visible' && document.hasFocus && document.hasFocus()) {
+        if (fallbackUrl) { window.location.href = fallbackUrl; return; }
         copyText(p.name.zh + ' / ' + p.name.en, t('navFail'));
       }
     }, 2200);

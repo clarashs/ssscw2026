@@ -71,7 +71,7 @@ main {
 .tb-kicker { font-size: 10px; letter-spacing: .12em; color: var(--ink-3); line-height: 1.4; }
 .tb-title { font-size: 16px; font-weight: 700; line-height: 1.3; }
 
-.tb-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.tb-actions { display: flex; align-items: center; gap: 8px; flex: none; margin-left: auto; }
 
 .lang-switch {
   display: flex;
@@ -118,6 +118,13 @@ main {
 .btn-block { width: 100%; }
 
 /* ============ Hero ============ */
+.hero-kicker {
+  font-size: 10px;
+  letter-spacing: .12em;
+  color: var(--ink-3);
+  line-height: 1.4;
+  margin-bottom: 2px;
+}
 .hero { padding: 18px 4px 8px; }
 
 .hero h1 {
@@ -254,6 +261,25 @@ main {
 .map-note-dialog { color: var(--ink-3); margin-left: 3px; }
 .map-note-dialog svg { width: 14px; height: 14px; }
 .map-note-retry { display: inline; }
+
+.map-info-card { color: var(--ink); font-size: 13px; line-height: 1.45; min-width: 190px; }
+.map-info-title { margin-bottom: 8px; }
+.map-info-actions { display: flex; flex-wrap: wrap; gap: 5px 10px; }
+.map-info-actions button, .map-info-actions a { border: 0; padding: 0; background: transparent; color: var(--blue); font: inherit; line-height: 1.45; text-decoration: underline; cursor: pointer; }
+.map-info-actions button:active, .map-info-actions a:active { color: var(--green); }
+.maplibregl-popup-content { padding: 10px 12px; border-radius: 8px; }
+.maplibregl-popup-close-button { font-size: 18px; color: var(--ink-3); }
+.maplibregl-ctrl-attrib { font-size: 9px; }
+
+.map-provider-sheet[hidden] { display: none; }
+.map-provider-sheet { position: fixed; inset: 0; z-index: 1000; isolation: isolate; display: flex; align-items: flex-end; justify-content: center; }
+.map-provider-backdrop { position: absolute; inset: 0; z-index: 0; background: rgba(20, 24, 28, .28); }
+.map-provider-panel { position: relative; z-index: 1; width: min(100%, 520px); padding: 18px 16px calc(16px + env(safe-area-inset-bottom)); border-radius: 18px 18px 0 0; background: var(--surface); box-shadow: 0 -8px 28px rgba(20, 24, 28, .18); }
+.map-provider-title { margin: 0 0 12px; color: var(--ink); font-weight: 700; font-size: 16px; }
+.map-provider-options { display: grid; gap: 8px; }
+.map-provider-options button { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink-2); font: inherit; text-align: left; padding: 10px 12px; cursor: pointer; }
+.map-provider-options button:active { background: var(--gray-soft); }
+body.map-provider-open { overflow: hidden; }
 
 /* 地图标记 */
 .mk {
